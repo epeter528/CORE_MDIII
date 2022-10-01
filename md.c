@@ -210,7 +210,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
    int dstart,dend,*at_id;
    int *count_0;
    double box_length,factor_AB=1.0;
-   double tau_kmc=2.0;
+   double *tau_kmc;
    int stepper=0,count1=1;    
    int k;
    double *norm,norm1,norm2;
@@ -220,6 +220,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
    double alpha = 1.0,beta=1.0;
    double delta_E,en_last;
    double *corr_x,*corr_y,*corr_z;
+   double counter_3=0.0;
    struct stat *buf = malloc(sizeof(struct stat));   
     int         **trotter_seq; 
     FILE   *fp;
@@ -264,6 +265,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
       
     }
     
+    snew(tau_kmc,natoms1+1);
     snew(x_1,natoms1+1);
     snew(y_1,natoms1+1);
     snew(z_1,natoms1+1); 
@@ -287,7 +289,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
    
     for(i=1;i<=natoms1;i++) {
      
-       av_x[i] = (double *) malloc(sizeof(double)*((int)tau_0 + 1));
+       av_x[i] = (double *) malloc(sizeof(double)*((int)tau_0*1000 + 1));
        
     };   
    
@@ -295,7 +297,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
    
     for(i=1;i<=natoms1;i++) {
      
-       av_y[i] = (double *) malloc(sizeof(double)*((int)tau_0 + 1));
+       av_y[i] = (double *) malloc(sizeof(double)*((int)tau_0*1000 + 1));
        
     };  
    
@@ -303,7 +305,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
    
     for(i=1;i<=natoms1;i++) {
      
-       av_z[i] = (double *) malloc(sizeof(double)*((int)tau_0 + 1));
+       av_z[i] = (double *) malloc(sizeof(double)*((int)tau_0*1000 + 1));
        
     }; 
     
@@ -1341,14 +1343,16 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
                         dL_y[i] = 0.0;
                         dL_z[i] = 0.0;                                                
 			
-			av_x2[i] = 0.0;
-			av_y2[i] = 0.0;
-			av_z2[i] = 0.0;
+                        av_x2[i] = 0.0;
+                        av_y2[i] = 0.0;
+                        av_z2[i] = 0.0;
 			
-			corr_x[i] = 0.0;
-			corr_y[i] = 0.0;
-			corr_z[i] = 0.0;
+                        corr_x[i] = 0.0;
+                        corr_y[i] = 0.0;
+                        corr_z[i] = 0.0;
 			
+                        tau_kmc[i] = 1.0;
+                        
                         for(k=1;k<=((int)tau_0);k++) {
                           
                             av_x[i][k] = 0.0;
@@ -1359,7 +1363,6 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
                     };		    
                 };
                 
-		beta = 1.0;
                 
                 for(i=1;i<=natoms1;i++) 
                     
@@ -1377,7 +1380,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
                     av_y[i][count1] = dL_y[i];                    
                     av_z[i][count1] = dL_z[i];
 		    
-		    int diff_t = count1 - tau_kmc;
+		    int diff_t = count1 - tau_kmc[i];
 		    
 		    if(diff_t < 1) diff_t += ((int)tau_0);
 		    
@@ -1389,69 +1392,87 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
                     av_y2[i] += sigma_y[i];		    
                     av_z2[i] += sigma_z[i];		    
 					     
-		    d_x = -(av_x2[i]/((double)stepper) - sigma_x2[i]);
-		    d_y = -(av_y2[i]/((double)stepper) - sigma_y2[i]);			 
-		    d_z = -(av_z2[i]/((double)stepper) - sigma_z2[i]);		  
+                    d_x = -(av_x2[i]/((double)stepper) - sigma_x2[i]);
+                    d_y = -(av_y2[i]/((double)stepper) - sigma_y2[i]);			 
+                    d_z = -(av_z2[i]/((double)stepper) - sigma_z2[i]);		  
 		  
-		    d_x2 = -(av_x2[i]/((double)stepper) - sigma_x[i]);
-		    d_y2 = -(av_y2[i]/((double)stepper) - sigma_y[i]);			 
-		    d_z2 = -(av_z2[i]/((double)stepper) - sigma_z[i]);					     
+                    d_x2 = -(av_x2[i]/((double)stepper) - sigma_x[i]);
+                    d_y2 = -(av_y2[i]/((double)stepper) - sigma_y[i]);			 
+                    d_z2 = -(av_z2[i]/((double)stepper) - sigma_z[i]);					     
 		    
-		    if(sqrt(pow(d_x2,2)) > 0.0 && sqrt(pow(d_x,2)) > 0.0) corr_x[i] += (d_x2*d_x)/(sqrt(pow(d_x2,2))*sqrt(pow(d_x,2)));
-		    if(sqrt(pow(d_y2,2)) > 0.0 && sqrt(pow(d_y,2)) > 0.0) corr_y[i] += (d_y2*d_y)/(sqrt(pow(d_y2,2))*sqrt(pow(d_y,2)));
-		    if(sqrt(pow(d_z2,2)) > 0.0 && sqrt(pow(d_z,2)) > 0.0) corr_z[i] += (d_z2*d_z)/(sqrt(pow(d_z2,2))*sqrt(pow(d_z,2))); 		    
+                    if(sqrt(pow(d_x2,2)) > 0.0 && sqrt(pow(d_x,2)) > 0.0) corr_x[i] += (d_x2*d_x)/(sqrt(pow(d_x2,2))*sqrt(pow(d_x,2)));
+                    if(sqrt(pow(d_y2,2)) > 0.0 && sqrt(pow(d_y,2)) > 0.0) corr_y[i] += (d_y2*d_y)/(sqrt(pow(d_y2,2))*sqrt(pow(d_y,2)));
+                    if(sqrt(pow(d_z2,2)) > 0.0 && sqrt(pow(d_z,2)) > 0.0) corr_z[i] += (d_z2*d_z)/(sqrt(pow(d_z2,2))*sqrt(pow(d_z,2))); 		    
 		    
                 };
 		
 		count1 += 1;
 		
-		if(count1 > ((int)tau_0 - 1)) count1 = 1;
-		
+		if(count1 > ((int)tau_0*1000 - 1)) count1 = 1;
 		
                 for(i=1;i<=natoms1;i++) 
                     
                       {   		 
 						 
 			 double d_x3=0.0,d_y3=0.0,d_z3=0.0;
-			 
-		         ran    = rand()%1000000/1E+6;
-			 
-		         alpha  = (ran-0.5)*2.0/(tau_0);			 
-			 
-			 d_x3   = alpha*corr_x[i]/((double)tau_kmc);
-			 d_y3   = alpha*corr_y[i]/((double)tau_kmc);			 
-			 d_z3   = alpha*corr_z[i]/((double)tau_kmc);
+	
+               d_x = -(av_x2[i]/((double)stepper) - sigma_x2[i]);
+               d_y = -(av_y2[i]/((double)stepper) - sigma_y2[i]);			 
+               d_z = -(av_z2[i]/((double)stepper) - sigma_z2[i]);		  
+		  
+               d_x2 = -(av_x2[i]/((double)stepper) - sigma_x[i]);
+               d_y2 = -(av_y2[i]/((double)stepper) - sigma_y[i]);			 
+               d_z2 = -(av_z2[i]/((double)stepper) - sigma_z[i]);	        
+        
+               alpha = 0.0;
+               
+               if(sqrt(pow(d_x2,2)) > 0.0 && sqrt(pow(d_x,2)) > 0.0) alpha  = ((d_x2*d_x/(sqrt(pow(d_x2,2))*sqrt(pow(d_x,2)))))/((double)tau_kmc[i])/tau_0;
 
-			 d_x    = exp(-d_x3*d_x3);
-			 d_y    = exp(-d_y3*d_y3);
-			 d_z    = exp(-d_z3*d_z3);
-			 
-                         if( rand()%1000000/1E+6 < d_x ) f_global[at_id[i]][0] *= (1+d_x3*d_x);		       
-                         if( rand()%1000000/1E+6 < d_y ) f_global[at_id[i]][1] *= (1+d_y3*d_y);		       
-                         if( rand()%1000000/1E+6 < d_z ) f_global[at_id[i]][2] *= (1+d_z3*d_z);
-		      
-		      }; 
-		      
-		tau_kmc += 1.0;
-		
-		if(tau_kmc > (tau_0 - 1.0)) {
-		  
-		  tau_kmc = 1.0;		    
-		  
-		  for(i=1;i<=natoms1;i++) {
+			 d_x3   = alpha*corr_x[i]/((double)tau_kmc[i]);
+        
+               alpha = 0.0;
+             
+               if(sqrt(pow(d_y2,2)) > 0.0 && sqrt(pow(d_y,2)) > 0.0) alpha  = ((d_y2*d_y/(sqrt(pow(d_y2,2))*sqrt(pow(d_y,2)))))/((double)tau_kmc[i])/tau_0;
+
+			 d_y3   = alpha*corr_y[i]/((double)tau_kmc[i]);			 
+             
+               alpha = 0.0;
+             
+               if(sqrt(pow(d_z2,2)) > 0.0 && sqrt(pow(d_z,2)) > 0.0) alpha  = ((d_z2*d_z/(sqrt(pow(d_z2,2))*sqrt(pow(d_z,2)))))/((double)tau_kmc[i])/tau_0;
+
+			 d_z3   = alpha*corr_z[i]/((double)tau_kmc[i]);
+             
+             d_x    = exp(-d_x3*d_x3);
+             d_y    = exp(-d_y3*d_y3);             
+             d_z    = exp(-d_z3*d_z3);
+             
+           if( isnan(d_x) == 0 && isnan(d_y) == 0 && isnan(d_z) == 0 &&
+               isinf(d_x) == 0 && isinf(d_y) == 0 && isinf(d_z) == 0) {
+             
+             f_global[at_id[i]][0] *= (1-2.0*d_x3*d_x);		       
+             f_global[at_id[i]][1] *= (1-2.0*d_y3*d_y);		       
+             f_global[at_id[i]][2] *= (1-2.0*d_z3*d_z);
+            
+           };
+             
+             if( tau_kmc[i] > (tau_0*1000 - 1) ) {
+                 
+	                tau_kmc[i] = 0.0;
+                       
+                        corr_x[i] = 0.0;
+                        corr_y[i] = 0.0;
+                        corr_z[i] = 0.0;
 		    
-		    corr_x[i] = 0.0;
-		    corr_y[i] = 0.0;
-		    corr_z[i] = 0.0;
-		    
-		    av_x2[i]  = 0.0;
-		    av_y2[i]  = 0.0;
-		    av_z2[i]  = 0.0;
-		    
-		  };
-		};
-		  
-	    };
+                        av_x2[i]  = 0.0;
+                        av_y2[i]  = 0.0;
+                        av_z2[i]  = 0.0;
+                 
+                };   
+               
+                tau_kmc[i] += 1.0;
+                
+                };
+	        };
         
             if(DOMAINDECOMP(cr)) dd_distribute_vec(cr->dd,dd_charge_groups_global(cr->dd),f_global,f);
 	    
